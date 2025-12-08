@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>C组 - 低语义噪声控制组 (Control Group)</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #050505; }
+        #info {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.8);
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            pointer-events: none;
+            z-index: 10;
+        }
+        h1 { margin: 0; font-weight: 300; font-size: 20px; letter-spacing: 3px; color: #aaccff; }
+        p { font-size: 12px; color: rgba(255, 255, 255, 0.4); margin-top: 5px; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+    <div id="info">
+        <h1>CONTROL GROUP V3</h1>
+        <p>Structure Dissolved: High Entropy Diffuse Volume</p>
+    </div>
+
+    <script>
+        // 1. 场景初始化 (保持与B组完全一致)
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x050505, 0.035);
+
+        const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 12, 35); // 保持完全一致的视角
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.3; // 转速一致
+        controls.maxPolarAngle = Math.PI / 2 - 0.1;
+
+        // 2. 粒子系统核心逻辑：无序扩散 (Diffuse Generation)
+        const geometry = new THREE.BufferGeometry();
+        const positions = [];
+        const colors = [];
+        const sizes = [];
+        
+        // 关键：为了保持严谨，粒子总数要与B组接近 (B组约2万个)
+        const TOTAL_PARTICLES = 20000; 
+
+        const colorCore = new THREE.Color(0xffaa33); 
+        const colorRim = new THREE.Color(0xaaccff);  
+
+        // 核心算法：在B组玛尼堆占据的大致体积内，进行随机均匀分布
+        function createDiffuseVolume() {
+            for (let i = 0; i < TOTAL_PARTICLES; i++) {
+                // 使用柱状随机分布，模拟原来的体积范围，但打破结构
+                const theta = Math.random() * Math.PI * 2;
+                
+                // 半径分布：保持 0 - 11 的范围
+                const radius = Math.sqrt(Math.random()) * 11; 
+                
+                // --- 修改点：视觉中心下移 ---
+                // 原来是 -3 到 9 (中心在 3)，视觉上偏高
+                // 现在改为 -6 到 6 (中心在 0)，视觉上正好在屏幕中间
+                const height = (Math.random() * 12) - 6;
+
+                // 转换为坐标
+                const x = radius * Math.cos(theta);
+                const y = height;
+                const z = radius * Math.sin(theta);
+
+                positions.push(x, y, z);
+
+                // 颜色逻辑：完全随机混合
+                const mixFactor = Math.random();
+                const mixedColor = colorCore.clone().lerp(colorRim, mixFactor);
+                colors.push(mixedColor.r, mixedColor.g, mixedColor.b);
+
+                // 大小逻辑：保持一致
+                sizes.push(Math.random() * 0.3 + 0.1);
+            }
+        }
+
+        createDiffuseVolume();
+
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+        
+        // 3. 材质 (保持与B组完全一致)
+        const canvas = document.createElement('canvas');
+        canvas.width = 32; canvas.height = 32;
+        const context = canvas.getContext('2d');
+        const gradient = context.createRadialGradient(16, 16, 0, 16, 16, 16);
+        gradient.addColorStop(0, 'rgba(255,255,255,1)');
+        gradient.addColorStop(0.4, 'rgba(255,240,200,0.5)');
+        gradient.addColorStop(1, 'rgba(0,0,0,0)');
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, 32, 32);
+        const texture = new THREE.CanvasTexture(canvas);
+
+        const material = new THREE.PointsMaterial({
+            size: 0.5,
+            map: texture,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.9,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            sizeAttenuation: true
+        });
+
+        const points = new THREE.Points(geometry, material);
+        scene.add(points);
+
+        // 4. 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
